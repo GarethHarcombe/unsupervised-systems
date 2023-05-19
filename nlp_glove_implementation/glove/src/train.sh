@@ -1,0 +1,5 @@
+# python3 train.py --config="config1"
+python3 train.py --config="config2"
+python3 train.py --config="config3"
+python3 train.py --config="config4"
+python3 train.py --config="config5"

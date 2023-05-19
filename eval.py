@@ -12,8 +12,8 @@ def print_results(test_labels, preds):
         test_labels: list(any), gold standard labels to test against
         preds: list(any), labels predicted by the model
     """
-    print(preds)
-    print(test_labels)
+    # print(preds)
+    # print(test_labels)
     results = confusion_matrix(test_labels, preds)
     tn, fp, fn, tp = results.ravel()
     print("Accuracy: {:.4f}".format((tn + tp) / len(preds)))

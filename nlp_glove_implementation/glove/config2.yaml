@@ -1,0 +1,28 @@
+# first step parameters
+## path to the input file, should be a pickle file storing a list of words
+input_filepath: "/csse/users/grh102/Documents/cosc442/unsupervised-systems/nlp_glove_implementation/glove/data/demo_data.pkl"
+## number of tokens in the training vocabulary
+vocab_size: 100000
+## size of the context window
+window_size: 5
+## the number of paritions to divide cooccurence matrix in 
+num_partitions: 10
+## chunk size of h5py.Dataset
+chunk_size: 1000000
+
+# when used in first step, specify the output directory of cooccurrence entries
+# when used in second step, specify where to read cooccurrence entries from
+cooccurrence_dir: "/csse/users/grh102/Documents/cosc442/unsupervised-systems/nlp_glove_implementation/glove/data/"
+
+# second step parameters
+## output path for the trained word vectors 
+output_filepath: "/csse/users/grh102/Documents/cosc442/unsupervised-systems/nlp_glove_implementation/glove/data/vectors2.txt"
+## pytorch training parameters
+batch_size: 32
+num_epochs: 10
+device: cuda
+learning_rate: 0.05
+## glove paremeters
+embedding_size: 50
+x_max: 100
+alpha: 0.75
