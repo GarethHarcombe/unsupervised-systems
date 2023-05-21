@@ -176,7 +176,7 @@ def msw(a, n, m, vocab):
 def j_at_n(A, models, n, vocab):
     jaccard_sums = 0
     for a in tqdm(A):
-        intersection = set().intersection(*[msw(a, n, m, vocab) for m in models])
+        intersection = set(range(len(vocab))).intersection(*[msw(a, n, m, vocab) for m in models])
         union        = set().union(       *[msw(a, n, m, vocab) for m in models])
         jaccard_sums += len(intersection) / len(union)
     return jaccard_sums / len(A)
