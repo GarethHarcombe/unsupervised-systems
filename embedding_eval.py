@@ -4,7 +4,8 @@ from collections import Counter
 from typing import Any
 import pandas as pd
 import numpy as np
-from eval import print_results
+from numpy.linalg import norm
+from eval import calc_results
 import nltk
 import string
 import re
@@ -21,8 +22,10 @@ from nlp_glove_implementation.glove.src.glove import GloVe
 import nlp_glove_implementation.glove.src.vocabulary as vocabulary
 from nlp_glove_implementation.glove.src.vocabulary import Vocabulary
 import h5py
+from tqdm import tqdm
 
 import sys
+from statistics import mean, variance
 
 
 # dataset: Https://Github.Com/Idontflow/Olidhttps://github.com/idontflow/OLID
@@ -42,21 +45,30 @@ def tokenise(d):
 
 def tweet_to_embedding(embedding, tweet, vocab=None):
     if vocab is not None:
-        return np.array([embedding[word] for word in tokenise(tweet) if word in vocab]).mean(axis=0)
+        tweet_embedding = np.array([embedding[word] for word in tokenise(tweet) if word in vocab])
     else:
-        return np.array([embedding[word] for word in tokenise(tweet) if word in embedding.keys()]).mean(axis=0)
+        tweet_embedding = np.array([embedding[word] for word in tokenise(tweet) if word in embedding.keys()])
+
+    if len(tweet_embedding) != 0:
+        # return tweet_embedding.mean(axis=0)
+        # return tweet_embedding.sum(axis=0)
+        return tweet_embedding.max(axis=0)
+    else:
+        return np.array([0] * 50)
 
 
 def load_sgns_embedding(filepath):
     embedding = dict()
+    vocab = set()
     with open(filepath, 'r') as f:
         lines = f.readlines()
         vocab_size, embedding_size = lines[0].split()
         for i in range(1, len(lines)):
             line = lines[i].split()
+            vocab.add(line[0])
             embedding[line[0]] = np.array([float(num) for num in line[1:]])
 
-    return embedding
+    return embedding, vocab
 
 
 def load_config():
@@ -91,7 +103,7 @@ def load_glove_embedding(filepath):
             + model.weight_tilde.weight.detach()).numpy()
     )
     # print(vocab.token2index.keys())
-    return keyed_vectors, vocab.token2index.keys()
+    return keyed_vectors, vocab
 
 
 def train_embeddings(embedding, vocab=None):
@@ -133,7 +145,7 @@ def evaluate(embedding, training_embeddings, labels, vocab=None):
     for d in test_docs:
         preds.append(labels[find_nearest(training_embeddings, tweet_to_embedding(embedding, d, vocab))])
         
-    print_results(test_labels, preds)
+    return calc_results(test_labels, preds)
     
 
 def eval_sgns_embedding(embedding_path):
@@ -146,20 +158,85 @@ def eval_sgns_embedding(embedding_path):
 def eval_glove_embeddings(embedding_path):
     print(embedding_path[-12:])
     embedding, vocab = load_glove_embedding(embedding_path)
+    vocab = vocab.token2index.keys()
     training_embeddings, labels = train_embeddings(embedding, vocab)
-    evaluate(embedding, training_embeddings, labels, vocab)
+    return evaluate(embedding, training_embeddings, labels, vocab)
+
+
+def cosine_sim(A, B):
+    return np.dot(A,B)/(norm(A)*norm(B))
+
+
+def msw(a, n, m, vocab):
+    top_words = set(np.argsort([cosine_sim(m[token], m[a]) for token in vocab])[-n:])
+
+    return top_words
+
+
+def j_at_n(A, models, n, vocab):
+    jaccard_sums = 0
+    for a in tqdm(A):
+        intersection = set().intersection(*[msw(a, n, m, vocab) for m in models])
+        union        = set().union(       *[msw(a, n, m, vocab) for m in models])
+        jaccard_sums += len(intersection) / len(union)
+    return jaccard_sums / len(A)
+
+
+def get_top_words():
+    vocab = load_glove_embedding("/csse/users/grh102/Documents/cosc442/unsupervised-systems/nlp_glove_implementation/glove/data/vectors1.txt")[1]
+    top_words_indices = np.argsort(vocab.token_counts)[-1000:]
+    top_words = [vocab.index2token[index] for index in top_words_indices]
+    return top_words, vocab
+
+
+def intrinsic_eval_sgns_embedding():
+    sgns_base_dir = "/csse/users/grh102/Documents/cosc442/unsupervised-systems/word2vec-master/vectors"
+    top_words, vocab = get_top_words()
+
+    models = []
+    for i in range(1, 6):
+        model, vocab = load_sgns_embedding(sgns_base_dir + str(i) + ".bin")
+        models.append(model)
+
+    j = j_at_n(top_words, models, 10, vocab)
+    print("SGNS", j)
+    
+
+def intrinsic_eval_glove_embeddings():
+    glove_base_dir = "/csse/users/grh102/Documents/cosc442/unsupervised-systems/nlp_glove_implementation/glove/data/vectors"
+    top_words, vocab = get_top_words()
+
+    models = []
+    for i in range(1, 6):
+        models.append(load_glove_embedding(glove_base_dir + str(i) + ".txt")[0])
+
+    j = j_at_n(top_words, models, 10, vocab.token2index.keys())
+    print("GloVe:", j)
 
 
 
 if __name__ == "__main__":
-    eval_sgns_embedding("/csse/users/grh102/Documents/cosc442/unsupervised-systems/word2vec-master/vectors1.bin")
-    eval_sgns_embedding("/csse/users/grh102/Documents/cosc442/unsupervised-systems/word2vec-master/vectors2.bin")
-    eval_sgns_embedding("/csse/users/grh102/Documents/cosc442/unsupervised-systems/word2vec-master/vectors3.bin")
-    eval_sgns_embedding("/csse/users/grh102/Documents/cosc442/unsupervised-systems/word2vec-master/vectors4.bin")
-    eval_sgns_embedding("/csse/users/grh102/Documents/cosc442/unsupervised-systems/word2vec-master/vectors5.bin")
+    intrinsic_eval_sgns_embedding()
+    intrinsic_eval_glove_embeddings()
 
-    # eval_glove_embeddings("/csse/users/grh102/Documents/cosc442/unsupervised-systems/nlp_glove_implementation/glove/data/vectors1.txt")
-    # eval_glove_embeddings("/csse/users/grh102/Documents/cosc442/unsupervised-systems/nlp_glove_implementation/glove/data/vectors2.txt")
-    # eval_glove_embeddings("/csse/users/grh102/Documents/cosc442/unsupervised-systems/nlp_glove_implementation/glove/data/vectors3.txt")
-    # eval_glove_embeddings("/csse/users/grh102/Documents/cosc442/unsupervised-systems/nlp_glove_implementation/glove/data/vectors4.txt")
-    # eval_glove_embeddings("/csse/users/grh102/Documents/cosc442/unsupervised-systems/nlp_glove_implementation/glove/data/vectors5.txt")
+    sgns_base_dir = "/csse/users/grh102/Documents/cosc442/unsupervised-systems/word2vec-master/vectors"
+    sgns_results = []
+    for i in range(1, 6):
+        sgns_results.append(eval_sgns_embedding(sgns_base_dir + str(i) + ".bin"))
+
+    glove_base_dir = "/csse/users/grh102/Documents/cosc442/unsupervised-systems/nlp_glove_implementation/glove/data/vectors"
+    glove_results = []
+    for i in range(1, 6):
+        glove_results.append(eval_glove_embeddings(glove_base_dir + str(i) + ".txt"))
+
+    print("SGNS: ")
+    sgns_f1  = [result[0] for result in sgns_results]
+    print(sgns_f1)
+    print("Mean:", mean(sgns_f1))
+    print("Variance:", variance(sgns_f1))
+
+    print("GloVe: ")
+    glove_f1 = [result[0] for result in glove_results]
+    print(glove_f1)
+    print("Mean:", mean(glove_f1))
+    print("Variance:", variance(glove_f1))
